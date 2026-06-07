@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Call Hub</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <div class="orb orb-left"></div>
+    <div class="orb orb-right"></div>
+
+    <header class="hero">
+      <p class="eyebrow">Voice Call Hub</p>
+      <h1>语音房间控制台</h1>
+      <p class="hero-copy">
+        只保留核心操作：创建房间、查询房间码、查看在线房间，以及复制连接命令。
+      </p>
+      <div class="hero-status">
+        <span class="status-pill" id="healthBadge">检测后端中...</span>
+        <span class="status-pill muted" id="backendBadge">Same-origin API</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel host-panel">
+        <div class="panel-header">
+          <div>
+            <p class="mini-label">Host Room</p>
+            <h2>创建房间</h2>
+          </div>
+          <button class="ghost" id="closeRoomButton" disabled>关闭当前房间</button>
+        </div>
+
+        <form id="hostForm" class="form-grid">
+          <label>
+            <span>房间名称</span>
+            <input id="roomName" type="text" placeholder="例如 Team Room" required>
+          </label>
+          <label>
+            <span>语音端口</span>
+            <input id="publicPort" type="number" min="1" max="65535" value="5000" required>
+          </label>
+          <button class="primary full-width" type="submit">创建房间</button>
+        </form>
+
+        <div class="host-state hidden" id="activeRoomPanel">
+          <div class="callout">
+            <p class="mini-label">Active Room</p>
+            <h3 id="activeRoomTitle">-</h3>
+            <p id="activeRoomMeta">-</p>
+            <p class="hint" id="statusHint">房间状态保持尚未启动。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel commands-panel">
+        <div class="panel-header">
+          <div>
+            <p class="mini-label">Commands</p>
+            <h2>复制命令</h2>
+          </div>
+        </div>
+
+        <div class="command-stack">
+          <div class="command-card">
+            <div class="command-head">
+              <h3>服务端命令</h3>
+              <button class="ghost small" data-copy-target="serverCommand">复制</button>
+            </div>
+            <pre id="serverCommand">创建房间后，这里会生成服务端命令。</pre>
+          </div>
+
+          <div class="command-card">
+            <div class="command-head">
+              <h3>客户端命令</h3>
+              <button class="ghost small" data-copy-target="clientCommand">复制</button>
+            </div>
+            <pre id="clientCommand">查询房间后，这里会生成客户端命令。</pre>
+          </div>
+
+          <div class="command-card">
+            <div class="command-head">
+              <h3>房间码加入命令</h3>
+              <button class="ghost small" data-copy-target="joinPublicCommand">复制</button>
+            </div>
+            <pre id="joinPublicCommand">创建房间后，这里会生成 join-public 命令。</pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel join-panel">
+        <div class="panel-header">
+          <div>
+            <p class="mini-label">Join Room</p>
+            <h2>查询房间码</h2>
+          </div>
+        </div>
+
+        <form id="lookupForm" class="lookup-row">
+          <input id="roomCodeInput" type="text" placeholder="输入房间码，例如 ABC123" required>
+          <button class="primary" type="submit">查询</button>
+        </form>
+
+        <div class="room-detail hidden" id="lookupResult">
+          <p class="mini-label">Room Detail</p>
+          <h3 id="lookupTitle">-</h3>
+          <p id="lookupMeta">-</p>
+        </div>
+      </section>
+
+      <section class="panel rooms-panel">
+        <div class="panel-header">
+          <div>
+            <p class="mini-label">Active Rooms</p>
+            <h2>在线房间</h2>
+          </div>
+          <button class="ghost" id="refreshRoomsButton">刷新</button>
+        </div>
+
+        <div id="roomsList" class="rooms-list empty-state">
+          正在加载房间...
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[Unit]
+Description=Public Voice Call Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/voice-call-cli
+Environment=PUBLIC_VOICE_BACKEND_HOST=0.0.0.0
+Environment=PUBLIC_VOICE_BACKEND_PORT=8100
+ExecStart=/opt/voice-call-cli/.venv-backend/bin/gunicorn --bind 0.0.0.0:8100 public_backend.wsgi:app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

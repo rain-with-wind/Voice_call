@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    public_host TEXT NOT NULL,
+    public_port INTEGER NOT NULL,
+    owner_name TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    manage_token TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_heartbeat_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
