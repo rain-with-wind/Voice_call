@@ -1,7 +1,14 @@
+const DEFAULT_AUDIO_PORT = 5000;
+const SESSION_POLL_INTERVAL_MS = 5000;
+const DEVICE_TOKEN_STORAGE_KEY = "voice_call_device_token";
+
 const state = {
   apiBase: window.location.origin,
+  deviceToken: loadOrCreateDeviceToken(),
   activeRoom: loadActiveRoom(),
-  statusTimer: null
+  joinedSession: loadJoinedSession(),
+  statusTimer: null,
+  sessionTimer: null
 };
 
 const elements = {
@@ -13,40 +20,40 @@ const elements = {
   activeRoomTitle: document.getElementById("activeRoomTitle"),
   activeRoomMeta: document.getElementById("activeRoomMeta"),
   statusHint: document.getElementById("statusHint"),
-  joinPublicCommand: document.getElementById("joinPublicCommand"),
   lookupForm: document.getElementById("lookupForm"),
   roomCodeInput: document.getElementById("roomCodeInput"),
   lookupResult: document.getElementById("lookupResult"),
   lookupTitle: document.getElementById("lookupTitle"),
   lookupMeta: document.getElementById("lookupMeta"),
-  refreshRoomsButton: document.getElementById("refreshRoomsButton"),
-  roomsList: document.getElementById("roomsList"),
-  roomName: document.getElementById("roomName")
+  roomName: document.getElementById("roomName"),
+  roomStage: document.getElementById("roomStage"),
+  roomStageTitle: document.getElementById("roomStageTitle"),
+  roomStageMeta: document.getElementById("roomStageMeta"),
+  membersList: document.getElementById("membersList"),
+  voiceHint: document.getElementById("voiceHint"),
+  leaveRoomButton: document.getElementById("leaveRoomButton")
 };
 
 boot();
 
 elements.hostForm.addEventListener("submit", handleCreateRoom);
 elements.lookupForm.addEventListener("submit", handleLookupRoom);
-elements.refreshRoomsButton.addEventListener("click", loadRooms);
 elements.closeRoomButton.addEventListener("click", handleCloseRoom);
-document.querySelectorAll("[data-copy-target]").forEach((button) => {
-  button.addEventListener("click", () => copyBlock(button.dataset.copyTarget));
-});
+elements.leaveRoomButton.addEventListener("click", handleLeaveRoom);
 
 async function boot() {
   elements.backendBadge.textContent = state.apiBase;
   await checkHealth();
   restoreActiveRoom();
-  await loadRooms();
+  await restoreJoinedSession();
 
   const roomCodeFromUrl = window.location.pathname.startsWith("/room/")
     ? decodeURIComponent(window.location.pathname.split("/").pop())
     : "";
 
-  if (roomCodeFromUrl) {
+  if (roomCodeFromUrl && (!state.joinedSession || state.joinedSession.roomCode !== roomCodeFromUrl)) {
     elements.roomCodeInput.value = roomCodeFromUrl;
-    await lookupRoom(roomCodeFromUrl);
+    await joinRoomSession(roomCodeFromUrl);
   }
 }
 
@@ -66,8 +73,8 @@ async function handleCreateRoom(event) {
 
   const payload = {
     name: elements.roomName.value.trim(),
-    public_host: "relay",
-    public_port: 0,
+    public_host: window.location.hostname || "127.0.0.1",
+    public_port: DEFAULT_AUDIO_PORT,
     owner_name: "",
     notes: ""
   };
@@ -87,10 +94,10 @@ async function handleCreateRoom(event) {
     saveActiveRoom(state.activeRoom);
     renderActiveRoom();
     startRoomStatusLoop();
-    renderCommandBlocks(response.room);
-    await loadRooms();
+    await joinRoomSession(response.room.room_code);
+    elements.statusHint.textContent = "房间已创建，你已进入该房间。";
   } catch (error) {
-    writeCommand("joinPublicCommand", error.message);
+    elements.statusHint.textContent = `创建失败：${error.message}`;
   }
 }
 
@@ -100,30 +107,41 @@ async function handleLookupRoom(event) {
   if (!roomCode) {
     return;
   }
-  await lookupRoom(roomCode);
+  await joinRoomSession(roomCode);
 }
 
-async function lookupRoom(roomCode) {
+async function joinRoomSession(roomCode) {
   try {
-    const payload = await apiRequest(`/api/rooms/${encodeURIComponent(roomCode)}`);
-    renderLookupRoom(payload.room);
-    renderClientCommands(payload.room);
+    if (state.joinedSession && state.joinedSession.roomCode === roomCode) {
+      await refreshJoinedRoomState();
+      return;
+    }
+
+    if (state.joinedSession && state.joinedSession.roomCode !== roomCode) {
+      await leaveJoinedSession();
+    }
+
+    const payload = await apiRequest(`/api/rooms/${encodeURIComponent(roomCode)}/join`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+
+    state.joinedSession = {
+      roomCode,
+      participantToken: payload.participant_token,
+      displayName: payload.participant.display_name
+    };
+    saveJoinedSession(state.joinedSession);
+    renderLookupRoom(payload.room, payload.participant);
+    renderRoomStage(payload.room, payload.participants, payload.messages);
+    startSessionLoop();
     window.history.replaceState({}, "", `/room/${roomCode}`);
   } catch (error) {
     elements.lookupResult.classList.remove("hidden");
     elements.lookupTitle.textContent = "房间未找到";
-    elements.lookupMeta.textContent = roomCode;
-    writeCommand("joinPublicCommand", error.message);
-  }
-}
-
-async function loadRooms() {
-  try {
-    const payload = await apiRequest("/api/rooms");
-    renderRooms(payload.rooms || []);
-  } catch (error) {
-    elements.roomsList.className = "rooms-list empty-state";
-    elements.roomsList.textContent = error.message;
+    elements.lookupMeta.textContent = `房间码：${roomCode}`;
+    hideRoomStage();
+    elements.voiceHint.textContent = `加入失败：${error.message}`;
   }
 }
 
@@ -145,16 +163,20 @@ async function handleCloseRoom() {
   }
 
   stopRoomStatusLoop();
+  if (state.joinedSession && state.joinedSession.roomCode === state.activeRoom.room.room_code) {
+    await leaveJoinedSession();
+    hideRoomStage();
+    elements.lookupResult.classList.add("hidden");
+    window.history.replaceState({}, "", "/");
+  }
   clearActiveRoom();
   renderActiveRoom();
-  await loadRooms();
 }
 
 function renderActiveRoom() {
   if (!state.activeRoom) {
     elements.activeRoomPanel.classList.add("hidden");
     elements.closeRoomButton.disabled = true;
-    writeCommand("joinPublicCommand", "创建房间后，这里会生成加入命令。");
     return;
   }
 
@@ -162,85 +184,18 @@ function renderActiveRoom() {
   elements.activeRoomPanel.classList.remove("hidden");
   elements.closeRoomButton.disabled = false;
   elements.activeRoomTitle.textContent = `${room.name} | ${room.room_code}`;
-  elements.activeRoomMeta.textContent = `Backend: ${state.apiBase}`;
-  elements.statusHint.textContent = `房间状态保持中，每 ${state.activeRoom.refreshIntervalSeconds} 秒自动更新。`;
-  renderCommandBlocks(room);
+  elements.activeRoomMeta.textContent = `房间码：${room.room_code}`;
+  elements.statusHint.textContent = `房间状态保持中，每 ${state.activeRoom.refreshIntervalSeconds} 秒自动更新一次。`;
 }
 
-function renderCommandBlocks(room) {
-  const backendUrl = state.apiBase;
-
-  writeCommand(
-    "joinPublicCommand",
-    [
-      "Windows:",
-      `python voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`,
-      "",
-      "Linux / WSL:",
-      `python3 voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`
-    ].join("\n")
-  );
-
-  renderClientCommands(room);
-}
-
-function renderClientCommands(room) {
-  const backendUrl = state.apiBase;
-  writeCommand(
-    "joinPublicCommand",
-    [
-      "Windows:",
-      `python voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`,
-      "",
-      "Linux / WSL:",
-      `python3 voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`
-    ].join("\n")
-  );
-}
-
-function renderLookupRoom(room) {
+function renderLookupRoom(room, participant = null) {
   elements.lookupResult.classList.remove("hidden");
   elements.lookupTitle.textContent = `${room.name} | ${room.room_code}`;
-  elements.lookupMeta.textContent = `${room.public_host}:${room.public_port}`;
-}
-
-function renderRooms(rooms) {
-  if (!rooms.length) {
-    elements.roomsList.className = "rooms-list empty-state";
-    elements.roomsList.textContent = "当前没有在线房间。";
-    return;
+  if (participant) {
+    elements.lookupMeta.textContent = `已加入，当前身份：${participant.display_name}`;
+  } else {
+    elements.lookupMeta.textContent = "房间可用，输入房间码即可加入。";
   }
-
-  elements.roomsList.className = "rooms-list";
-  elements.roomsList.innerHTML = "";
-
-  rooms.forEach((room) => {
-    const card = document.createElement("article");
-    card.className = "room-card";
-    card.innerHTML = `
-      <div class="room-info">
-        <p class="mini-label">${escapeHtml(room.room_code)}</p>
-        <h3>${escapeHtml(room.name)}</h3>
-        <p>${escapeHtml(room.public_host)}:${escapeHtml(String(room.public_port))}</p>
-      </div>
-      <div class="room-actions">
-        <button class="ghost small" data-action="lookup">查看</button>
-        <button class="primary small" data-action="client">生成命令</button>
-      </div>
-    `;
-
-    card.querySelector('[data-action="lookup"]').addEventListener("click", async () => {
-      elements.roomCodeInput.value = room.room_code;
-      await lookupRoom(room.room_code);
-    });
-
-    card.querySelector('[data-action="client"]').addEventListener("click", () => {
-      renderLookupRoom(room);
-      renderClientCommands(room);
-    });
-
-    elements.roomsList.appendChild(card);
-  });
 }
 
 function restoreActiveRoom() {
@@ -249,6 +204,22 @@ function restoreActiveRoom() {
   }
   renderActiveRoom();
   startRoomStatusLoop();
+}
+
+async function restoreJoinedSession() {
+  if (!state.joinedSession) {
+    hideRoomStage();
+    return;
+  }
+
+  try {
+    await refreshJoinedRoomState();
+    startSessionLoop();
+  } catch (error) {
+    clearJoinedSession();
+    hideRoomStage();
+    elements.voiceHint.textContent = `房间恢复失败：${error.message}`;
+  }
 }
 
 function startRoomStatusLoop() {
@@ -269,7 +240,6 @@ function startRoomStatusLoop() {
       state.activeRoom.room = payload.room;
       saveActiveRoom(state.activeRoom);
       elements.statusHint.textContent = `上次更新：${new Date().toLocaleTimeString()}`;
-      await loadRooms();
     } catch (error) {
       elements.statusHint.textContent = `状态更新失败：${error.message}`;
     }
@@ -279,10 +249,43 @@ function startRoomStatusLoop() {
   state.statusTimer = window.setInterval(tick, state.activeRoom.refreshIntervalSeconds * 1000);
 }
 
+function startSessionLoop() {
+  stopSessionLoop();
+  if (!state.joinedSession) {
+    return;
+  }
+
+  const tick = async () => {
+    try {
+      await apiRequest(`/api/rooms/${encodeURIComponent(state.joinedSession.roomCode)}/participants/heartbeat`, {
+        method: "POST",
+        headers: {
+          "X-Participant-Token": state.joinedSession.participantToken
+        },
+        body: JSON.stringify({})
+      });
+      await refreshJoinedRoomState();
+      elements.voiceHint.textContent = `已连接房间，当前身份：${state.joinedSession.displayName}`;
+    } catch (error) {
+      elements.voiceHint.textContent = `房间同步失败：${error.message}`;
+    }
+  };
+
+  tick();
+  state.sessionTimer = window.setInterval(tick, SESSION_POLL_INTERVAL_MS);
+}
+
 function stopRoomStatusLoop() {
   if (state.statusTimer) {
     window.clearInterval(state.statusTimer);
     state.statusTimer = null;
+  }
+}
+
+function stopSessionLoop() {
+  if (state.sessionTimer) {
+    window.clearInterval(state.sessionTimer);
+    state.sessionTimer = null;
   }
 }
 
@@ -304,17 +307,126 @@ function clearActiveRoom() {
   localStorage.removeItem("voice_call_active_room");
 }
 
-function writeCommand(elementId, content) {
-  document.getElementById(elementId).textContent = content;
+function saveJoinedSession(session) {
+  localStorage.setItem("voice_call_joined_session", JSON.stringify(session));
 }
 
-async function copyBlock(elementId) {
-  const content = document.getElementById(elementId).textContent;
+function loadJoinedSession() {
   try {
-    await navigator.clipboard.writeText(content);
+    const raw = localStorage.getItem("voice_call_joined_session");
+    return raw ? JSON.parse(raw) : null;
   } catch (_error) {
-    // Ignore clipboard failures silently.
+    return null;
   }
+}
+
+function clearJoinedSession() {
+  state.joinedSession = null;
+  localStorage.removeItem("voice_call_joined_session");
+}
+
+function loadOrCreateDeviceToken() {
+  try {
+    const existing = localStorage.getItem(DEVICE_TOKEN_STORAGE_KEY);
+    if (existing) {
+      return existing;
+    }
+  } catch (_error) {
+    // Ignore storage access failures and fall through to a volatile token.
+  }
+
+  const generated = generateDeviceToken();
+  try {
+    localStorage.setItem(DEVICE_TOKEN_STORAGE_KEY, generated);
+  } catch (_error) {
+    // Ignore storage failures and keep using the in-memory token.
+  }
+  return generated;
+}
+
+function generateDeviceToken() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return `vc-web-${window.crypto.randomUUID()}`;
+  }
+  return `vc-web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function refreshJoinedRoomState() {
+  if (!state.joinedSession) {
+    return;
+  }
+
+  const payload = await apiRequest(`/api/rooms/${encodeURIComponent(state.joinedSession.roomCode)}/state`);
+  renderRoomStage(payload.room, payload.participants);
+}
+
+function renderRoomStage(room, participants) {
+  elements.roomStage.classList.remove("hidden");
+  elements.leaveRoomButton.disabled = false;
+  elements.roomStageTitle.textContent = `${room.name} | ${room.room_code}`;
+  elements.roomStageMeta.textContent = `当前在线 ${participants.length} 人`;
+  renderMembers(participants);
+  elements.voiceHint.textContent = state.joinedSession
+    ? `房间已连接，当前身份：${state.joinedSession.displayName}`
+    : "房间已连接。";
+}
+
+function hideRoomStage() {
+  elements.roomStage.classList.add("hidden");
+  elements.leaveRoomButton.disabled = true;
+}
+
+function renderMembers(participants) {
+  if (!participants.length) {
+    elements.membersList.className = "members-list empty-state";
+    elements.membersList.textContent = "当前还没有在线成员。";
+    return;
+  }
+
+  elements.membersList.className = "members-list";
+  elements.membersList.innerHTML = participants.map((participant) => {
+    const isSelf = state.joinedSession && participant.participant_token === state.joinedSession.participantToken;
+    const selfLabel = isSelf ? " (你)" : "";
+    return `<article class="member-pill">${escapeHtml(participant.display_name)}${selfLabel}</article>`;
+  }).join("");
+}
+
+async function handleLeaveRoom() {
+  await leaveJoinedSession();
+  hideRoomStage();
+  elements.lookupResult.classList.add("hidden");
+  elements.voiceHint.textContent = "你已离开房间。";
+  window.history.replaceState({}, "", "/");
+}
+
+async function leaveJoinedSession() {
+  if (!state.joinedSession) {
+    return;
+  }
+
+  try {
+    await apiRequest(`/api/rooms/${encodeURIComponent(state.joinedSession.roomCode)}/participants/leave`, {
+      method: "POST",
+      headers: {
+        "X-Participant-Token": state.joinedSession.participantToken
+      },
+      body: JSON.stringify({})
+    });
+  } catch (_error) {
+    // Ignore leave failures and clear local state anyway.
+  }
+
+  stopSessionLoop();
+  clearJoinedSession();
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 async function apiRequest(path, options = {}) {
@@ -322,6 +434,7 @@ async function apiRequest(path, options = {}) {
     method: options.method || "GET",
     headers: {
       "Content-Type": "application/json",
+      "X-Device-Token": state.deviceToken,
       ...(options.headers || {})
     },
     body: options.body
@@ -332,13 +445,4 @@ async function apiRequest(path, options = {}) {
     throw new Error(payload.error || `Request failed: ${response.status}`);
   }
   return payload;
-}
-
-function escapeHtml(text) {
-  return String(text)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }

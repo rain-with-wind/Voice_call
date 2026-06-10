@@ -1,237 +1,233 @@
 # Voice Call CLI
 
-基于 WebSocket 音频引擎 + Flask 房间协调后端的语音通话工具，支持 Windows / WSL / Linux 环境。
+`Voice Call CLI` is a WSL/Linux-friendly voice room project built around a
+simple TCP audio engine plus a public coordination backend.
 
-## 功能特性
+It supports:
 
-- 实时双工语音通话，通过 WebSocket 中继传输
-- 公共房间的注册、发现、心跳保持和关闭
-- 浏览器房间管理面板
-- 只需 ngrok HTTP 一条隧道即可公网通话（无需 TCP 隧道）
+- direct client/server voice calls over TCP
+- public room registration and discovery through a Flask backend
+- a lightweight browser frontend for room creation and voice-call visualization
+- frontend-generated device tokens for stable room identity reuse
+- deployment and smoke-test scripts for WSL and Linux virtual machines
 
-## 项目结构
+## Documentation
 
-```
-Voice_call/
+- [Project Report](./docs/PROJECT_REPORT.md)
+- [API Reference](./docs/API.md)
+- [Deployment Guide](./docs/DEPLOYMENT.md)
+- [Doxygen Comment Guide](./docs/DOXYGEN.md)
+- [Contributing Guide](./CONTRIBUTING.md)
+- [Security Policy](./SECURITY.md)
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [License](./LICENSE)
+
+## Features
+
+- Real-time duplex voice transport over TCP
+- Public room registration, lookup, refresh, and close APIs
+- Browser-based room management panel
+- Backward-compatible CLI entrypoint: `python voice_call.py ...`
+- WSL smoke-test scripts for both audio mode and backend mode
+
+## Project Structure
+
+```text
+Voice_call_cli/
 ├── deploy/
 │   ├── public/
-│   │   ├── run_backend_wsl.sh
-│   │   ├── setup_backend_wsl.sh
-│   │   └── smoke_test_backend.sh
 │   └── wsl/
-│       ├── run_client.sh
-│       ├── run_server.sh
-│       ├── setup_wsl.sh
-│       └── smoke_test.sh
+├── docs/
+│   ├── API.md
+│   ├── DEPLOYMENT.md
+│   ├── DOXYGEN.md
+│   └── PROJECT_REPORT.md
 ├── public_backend/
 │   ├── app/
-│   │   ├── routes/
-│   │   │   ├── health.py
-│   │   │   ├── rooms.py
-│   │   │   └── voice.py
-│   │   ├── config.py
-│   │   ├── database.py
-│   │   ├── room_registry.py
-│   │   └── __init__.py
 │   ├── frontend/
-│   │   ├── assets/
-│   │   │   ├── app.js
-│   │   │   └── styles.css
-│   │   └── index.html
 │   ├── run.py
 │   └── wsgi.py
 ├── voice_call_cli/
 │   ├── backend_client/
-│   │   ├── api.py
-│   │   └── __init__.py
 │   ├── cli.py
 │   ├── config.py
 │   ├── console.py
 │   ├── engine.py
-│   ├── ws_engine.py
 │   ├── public_commands.py
 │   └── stats.py
-├── voice_call.py
-├── requirements.txt
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── LICENSE
+├── README.md
+├── SECURITY.md
 ├── requirements-backend.txt
-└── README.md
+├── requirements.txt
+└── voice_call.py
 ```
 
-## 环境准备
+## Quick Start
 
-### Windows
-
-语音 CLI：
-
-```bash
-cd d:\python\pythonproject\Voice_call
-pip install -r requirements.txt
-```
-
-后端：
-
-```bash
-cd d:\python\pythonproject\Voice_call
-pip install flask flask-sock
-```
-
-### WSL / Linux
-
-系统依赖：
+### 1. Install WSL/Linux system dependencies
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y python3 python3-venv python3-pip portaudio19-dev
 ```
 
-语音 CLI：
+### 2. Prepare the audio CLI environment
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli
+bash deploy/wsl/setup_wsl.sh
 ```
 
-后端：
+### 3. Prepare the public backend environment
 
 ```bash
-python3 -m venv .venv-backend
-source .venv-backend/bin/activate
-pip install -r requirements-backend.txt
+cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli
+bash deploy/public/setup_backend_wsl.sh
 ```
 
-## 本地使用
+### 4. Optional: install a native WSL GUI browser
 
-### 直接 TCP 模式（局域网直连）
-
-服务端：
+If you want to open the frontend from a Linux GUI browser inside WSL rather
+than reusing the Windows browser:
 
 ```bash
-python voice_call.py --mode server --port 5000
+wsl -u root bash /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli/deploy/wsl/install_gui_browser.sh
 ```
 
-客户端：
+## Usage
+
+### Direct TCP mode
+
+Start a server:
 
 ```bash
-python voice_call.py --mode client --host 192.168.1.100 --port 5000
+python3 voice_call.py --mode server --port 5000
 ```
 
-### 公共房间模式（通过后端中继）
-
-启动后端：
-
-**Windows：**
+Start a client:
 
 ```bash
-cd d:\python\pythonproject\Voice_call\public_backend
-python run.py
+python3 voice_call.py --mode client --host 192.168.43.62 --port 5000
 ```
 
-**WSL / Linux：**
+### Public room mode
+
+Run the public backend:
 
 ```bash
 bash deploy/public/run_backend_wsl.sh
 ```
 
-后端监听 `0.0.0.0:8100`，前端页面 `http://127.0.0.1:8100/`。
-
-创建房间（服务端）：
+Create a room from the host side:
 
 ```bash
-python voice_call.py host-public \
-  --backend-url http://127.0.0.1:8100 \
-  --room-name 我的房间
+python3 voice_call.py host-public \
+  --backend-url https://voice.example.com \
+  --room-name demo-room \
+  --public-host call.example.com \
+  --port 5000
 ```
 
-加入房间（客户端）：
+Join a room by room code:
 
 ```bash
-python voice_call.py join-public \
-  --backend-url http://127.0.0.1:8100 \
+python3 voice_call.py join-public \
+  --backend-url https://voice.example.com \
   --room-code ABC123
 ```
 
-查看在线房间：
+List active rooms:
 
 ```bash
-python voice_call.py list-rooms --backend-url http://127.0.0.1:8100
+python3 voice_call.py list-rooms --backend-url https://voice.example.com
 ```
 
-## 公网部署
-
-只需启动后端并通过 ngrok 暴露 HTTP 端口，语音数据通过 WebSocket 自动走同一隧道。
-
-### 步骤 1：启动后端
-
-**Windows：**
+Check backend availability:
 
 ```bash
-cd d:\python\pythonproject\Voice_call\public_backend
-python run.py
+python3 voice_call.py backend-health --backend-url https://voice.example.com
 ```
 
-### 步骤 2：启动 ngrok
+Collect local device identity information:
 
 ```bash
-ngrok http 8100
+python3 voice_call.py device-info --json
 ```
 
-输出示例：
+## Web Console
 
-```
-Forwarding: https://xxxx-xxx.ngrok-free.app -> http://localhost:8100
-```
+Once the backend is running, open:
 
-记下 `https://xxxx-xxx.ngrok-free.app` → **Backend URL**。
+- `http://127.0.0.1:8100/` for local WSL testing
+- `https://voice.example.com/` for public deployment
 
-### 步骤 3：发起通话
+The frontend keeps only core operations:
 
-服务端（创建房间）：
+- create room
+- join room by room code
+- see active members in the room
+- view room state for voice-call coordination
+- close current room
+
+Identity behavior:
+
+- the frontend generates a stable device token on first visit
+- repeated joins from the same browser/device reuse the same room identity
+- different device tokens are treated as different members, even behind the same IP
+
+To open the frontend with a native WSL GUI browser:
 
 ```bash
-python voice_call.py host-public \
-  --backend-url https://xxxx-xxx.ngrok-free.app \
-  --room-name 测试房间
+bash deploy/wsl/open_frontend_wsl.sh
 ```
 
-客户端（加入房间）：
+The launcher prefers `Microsoft Edge (Linux)` with safe software-rendering
+flags on WSL, then falls back to other installed Linux browsers.
+
+## Verification
+
+Compile Python sources:
 
 ```bash
-python voice_call.py join-public \
-  --backend-url https://xxxx-xxx.ngrok-free.app \
-  --room-code <对方提供的房间码>
+python3 -m compileall voice_call.py voice_call_cli public_backend
 ```
 
-### 部署一览
+Run audio smoke test:
 
-```
-终端 1：cd public_backend && python run.py      → Flask 后端 :8100
-终端 2：ngrok http 8100                          → 公网 API + 语音中继（WebSocket）
-
-服务端机器                          客户端机器
-┌─────────────────┐                ┌─────────────────┐
-│  Flask 后端      │                │                 │
-│  + WS 中继       │                │                 │
-│       ↓         │                │                 │
-│  ngrok HTTP     │──── 互联网 ────│  voice_call.py  │
-│  (单条隧道)     │                │  join-public    │
-└─────────────────┘                └─────────────────┘
+```bash
+bash deploy/wsl/smoke_test.sh
 ```
 
-## 常见问题
+Run backend smoke test:
 
-**Q: Ctrl+C 无法退出通话？**
+```bash
+bash deploy/public/smoke_test_backend.sh
+```
 
-A: 已修复，按 Ctrl+C 可以正常退出。
+## Deployment Notes
 
-**Q: 提示 `ConnectionRefusedError`？**
+For a public Linux or WSL deployment:
 
-A: 确保后端已启动，检查 `http://127.0.0.1:8100/api/health` 是否返回正常。
+1. run the backend with `gunicorn public_backend.wsgi:app`
+2. place `nginx` or another reverse proxy in front of the backend
+3. configure DNS for the public backend domain
+4. expose the backend port and the audio server port in firewall rules
+5. ensure the room host domain and audio port are reachable by clients
 
-**Q: 语音延迟或卡顿？**
+Reference files:
 
-A: ngrok 免费版带宽有限。局域网内使用直接 TCP 模式延迟更低。
+- `deploy/public/backend.service`
+- `deploy/public/nginx.conf`
 
-## 许可证
+## License
 
-本项目基于 [MIT License](./LICENSE) 发布。
+This project is released under the [MIT License](./LICENSE).
+
+## Repository Address
+
+This workspace can now be prepared as a standard git repository, but a public
+remote URL cannot be generated locally. After pushing to GitHub, Gitee, or
+another hosting platform, record that remote URL in your submission materials.

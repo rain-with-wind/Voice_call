@@ -8,7 +8,7 @@ import sys
 
 from .config import VoiceCallConfig
 from .console import warning
-from .public_commands import describe_backend, host_public_room, join_public_room, print_rooms
+from .device_info import print_device_info
 
 
 def build_parser():
@@ -25,7 +25,8 @@ def build_parser():
             "  Server: python3 voice_call.py --mode server --port 5000\n"
             "  Client: python3 voice_call.py --mode client --host 192.168.1.100 --port 5000\n"
             "  Host public room: python3 voice_call.py host-public --backend-url https://voice.example.com --room-name demo --public-host call.example.com\n"
-            "  Join public room: python3 voice_call.py join-public --backend-url https://voice.example.com --room-code ABC123"
+            "  Join public room: python3 voice_call.py join-public --backend-url https://voice.example.com --room-code ABC123\n"
+            "  Device info: python3 voice_call.py device-info --json"
         ),
     )
 
@@ -49,6 +50,10 @@ def build_parser():
     health_parser = subparsers.add_parser("backend-health", help="Check whether the public backend is reachable")
     health_parser.add_argument("--backend-url", required=True, help="Public backend base URL")
 
+    device_parser = subparsers.add_parser("device-info", help="Collect and print local device token and environment info")
+    device_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+    device_parser.add_argument("--reset-token", action="store_true", help="Regenerate the local device token before printing")
+
     return parser
 
 
@@ -67,16 +72,27 @@ def main():
     args = parser.parse_args()
 
     if args.command == "host-public":
+        from .public_commands import host_public_room
+
         host_public_room(args)
         return
     if args.command == "join-public":
+        from .public_commands import join_public_room
+
         join_public_room(args)
         return
     if args.command == "list-rooms":
+        from .public_commands import print_rooms
+
         print_rooms(args.backend_url)
         return
     if args.command == "backend-health":
+        from .public_commands import describe_backend
+
         describe_backend(args.backend_url)
+        return
+    if args.command == "device-info":
+        print_device_info(json_output=args.json, reset_token=args.reset_token)
         return
 
     parser.print_help()

@@ -39,7 +39,9 @@ def create_app():
         """
         origin = app.config["ALLOWED_ORIGIN"]
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Manage-Token"
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, X-Manage-Token, X-Participant-Token, X-Device-Token"
+        )
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         return response
 
