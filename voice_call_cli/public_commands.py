@@ -3,13 +3,12 @@
 """
 
 import json
-import socket
 import threading
 
 from .backend_client import PublicBackendClient
 from .config import VoiceCallConfig
 from .console import accent, info, print_banner, success, warning
-from .engine import VoiceCall
+from .ws_engine import VoiceCallWS
 
 
 def print_rooms(backend_url):
@@ -47,27 +46,26 @@ def describe_backend(backend_url):
 
 
 def host_public_room(args):
-    """@brief Register a public room and start the local audio server.
+    """@brief Register a public room and start WebSocket audio.
 
     @param args Parsed command-line arguments for the `host-public` workflow.
     @return None
     """
     backend = PublicBackendClient(args.backend_url)
-    public_host = args.public_host or _guess_public_host()
     payload = {
         "name": args.room_name,
-        "public_host": public_host,
-        "public_port": args.port,
-        "owner_name": args.owner_name,
-        "notes": args.notes,
+        "public_host": "relay",
+        "public_port": 0,
+        "owner_name": args.owner_name or "",
+        "notes": args.notes or "",
     }
     room = backend.register_room(payload)
 
     print_banner("Public Room Registered")
     print(success(f"Room code: {room['room']['room_code']}"))
-    print(f"Join domain: {room['room']['public_host']}:{room['room']['public_port']}")
     print(f"Backend URL: {args.backend_url}")
-    print(info("Clients can either connect directly to the domain or use join-public with the room code.\n"))
+    print(info("Client can join with: python voice_call.py join-public "
+               f"--backend-url {args.backend_url} --room-code {room['room']['room_code']}\n"))
 
     stop_event = threading.Event()
     heartbeat_thread = threading.Thread(
@@ -78,16 +76,16 @@ def host_public_room(args):
     heartbeat_thread.start()
 
     try:
-        call = VoiceCall(
+        call = VoiceCallWS(
             VoiceCallConfig(
-                host=args.bind_host,
+                host="0.0.0.0",
                 port=args.port,
                 chunk=args.chunk,
                 rate=args.rate,
                 channels=args.channels,
             )
         )
-        call.start_server()
+        call.start(args.backend_url, room["room"]["room_code"], "host")
     finally:
         stop_event.set()
         try:
@@ -97,7 +95,7 @@ def host_public_room(args):
 
 
 def join_public_room(args):
-    """@brief Resolve a public room code and join its audio endpoint.
+    """@brief Resolve a public room code and join via WebSocket audio.
 
     @param args Parsed command-line arguments for the `join-public` workflow.
     @return None
@@ -105,23 +103,21 @@ def join_public_room(args):
     backend = PublicBackendClient(args.backend_url)
     room_response = backend.get_room(args.room_code)
     room = room_response["room"]
-    target = f"{room['public_host']}:{room['public_port']}"
 
     print_banner("Join Public Room")
     print(f"Room code: {success(room['room_code'])}")
     print(f"Room name: {room['name']}")
-    print(f"Connecting to domain: {accent(target)}")
 
-    call = VoiceCall(
+    call = VoiceCallWS(
         VoiceCallConfig(
             host="0.0.0.0",
-            port=room["public_port"],
+            port=0,
             chunk=args.chunk,
             rate=args.rate,
             channels=args.channels,
         )
     )
-    call.connect_to_server(room["public_host"])
+    call.start(args.backend_url, room["room_code"], "client")
 
 
 def _heartbeat_loop(backend, room_code, manage_token, interval_seconds, stop_event):
@@ -139,16 +135,3 @@ def _heartbeat_loop(backend, room_code, manage_token, interval_seconds, stop_eve
             backend.heartbeat(room_code, manage_token)
         except RuntimeError as exc:
             print(warning(f"Heartbeat failed: {exc}"))
-
-
-def _guess_public_host():
-    """@brief Infer a reasonable public host name from the local machine.
-
-    @return str Fully qualified domain name when available, otherwise the local
-        hostname.
-    """
-    hostname = socket.gethostname()
-    try:
-        return socket.getfqdn(hostname)
-    except OSError:
-        return hostname

@@ -38,10 +38,6 @@
             <span>房间名称</span>
             <input id="roomName" type="text" placeholder="例如 Team Room" required>
           </label>
-          <label>
-            <span>语音端口</span>
-            <input id="publicPort" type="number" min="1" max="65535" value="5000" required>
-          </label>
           <button class="primary full-width" type="submit">创建房间</button>
         </form>
 
@@ -59,33 +55,17 @@
         <div class="panel-header">
           <div>
             <p class="mini-label">Commands</p>
-            <h2>复制命令</h2>
+            <h2>加入命令</h2>
           </div>
         </div>
 
         <div class="command-stack">
           <div class="command-card">
             <div class="command-head">
-              <h3>服务端命令</h3>
-              <button class="ghost small" data-copy-target="serverCommand">复制</button>
-            </div>
-            <pre id="serverCommand">创建房间后，这里会生成服务端命令。</pre>
-          </div>
-
-          <div class="command-card">
-            <div class="command-head">
-              <h3>客户端命令</h3>
-              <button class="ghost small" data-copy-target="clientCommand">复制</button>
-            </div>
-            <pre id="clientCommand">查询房间后，这里会生成客户端命令。</pre>
-          </div>
-
-          <div class="command-card">
-            <div class="command-head">
-              <h3>房间码加入命令</h3>
+              <h3>客户端加入命令</h3>
               <button class="ghost small" data-copy-target="joinPublicCommand">复制</button>
             </div>
-            <pre id="joinPublicCommand">创建房间后，这里会生成 join-public 命令。</pre>
+            <pre id="joinPublicCommand">创建房间后，这里会生成加入命令。</pre>
           </div>
         </div>
       </section>

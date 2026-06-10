@@ -13,8 +13,6 @@ const elements = {
   activeRoomTitle: document.getElementById("activeRoomTitle"),
   activeRoomMeta: document.getElementById("activeRoomMeta"),
   statusHint: document.getElementById("statusHint"),
-  serverCommand: document.getElementById("serverCommand"),
-  clientCommand: document.getElementById("clientCommand"),
   joinPublicCommand: document.getElementById("joinPublicCommand"),
   lookupForm: document.getElementById("lookupForm"),
   roomCodeInput: document.getElementById("roomCodeInput"),
@@ -23,8 +21,7 @@ const elements = {
   lookupMeta: document.getElementById("lookupMeta"),
   refreshRoomsButton: document.getElementById("refreshRoomsButton"),
   roomsList: document.getElementById("roomsList"),
-  roomName: document.getElementById("roomName"),
-  publicPort: document.getElementById("publicPort")
+  roomName: document.getElementById("roomName")
 };
 
 boot();
@@ -69,8 +66,8 @@ async function handleCreateRoom(event) {
 
   const payload = {
     name: elements.roomName.value.trim(),
-    public_host: window.location.hostname || "127.0.0.1",
-    public_port: Number(elements.publicPort.value),
+    public_host: "relay",
+    public_port: 0,
     owner_name: "",
     notes: ""
   };
@@ -93,7 +90,7 @@ async function handleCreateRoom(event) {
     renderCommandBlocks(response.room);
     await loadRooms();
   } catch (error) {
-    writeCommand("serverCommand", error.message);
+    writeCommand("joinPublicCommand", error.message);
   }
 }
 
@@ -116,7 +113,7 @@ async function lookupRoom(roomCode) {
     elements.lookupResult.classList.remove("hidden");
     elements.lookupTitle.textContent = "房间未找到";
     elements.lookupMeta.textContent = roomCode;
-    writeCommand("clientCommand", error.message);
+    writeCommand("joinPublicCommand", error.message);
   }
 }
 
@@ -157,8 +154,7 @@ function renderActiveRoom() {
   if (!state.activeRoom) {
     elements.activeRoomPanel.classList.add("hidden");
     elements.closeRoomButton.disabled = true;
-    writeCommand("serverCommand", "创建房间后，这里会生成服务端命令。");
-    writeCommand("joinPublicCommand", "创建房间后，这里会生成 join-public 命令。");
+    writeCommand("joinPublicCommand", "创建房间后，这里会生成加入命令。");
     return;
   }
 
@@ -166,8 +162,8 @@ function renderActiveRoom() {
   elements.activeRoomPanel.classList.remove("hidden");
   elements.closeRoomButton.disabled = false;
   elements.activeRoomTitle.textContent = `${room.name} | ${room.room_code}`;
-  elements.activeRoomMeta.textContent = `${room.public_host}:${room.public_port}`;
-  elements.statusHint.textContent = `房间状态保持中，每 ${state.activeRoom.refreshIntervalSeconds} 秒自动更新一次。`;
+  elements.activeRoomMeta.textContent = `Backend: ${state.apiBase}`;
+  elements.statusHint.textContent = `房间状态保持中，每 ${state.activeRoom.refreshIntervalSeconds} 秒自动更新。`;
   renderCommandBlocks(room);
 }
 
@@ -175,24 +171,13 @@ function renderCommandBlocks(room) {
   const backendUrl = state.apiBase;
 
   writeCommand(
-    "serverCommand",
-    [
-      "Linux / WSL:",
-      `python3 voice_call.py --mode server --port ${room.public_port}`,
-      "",
-      "Windows:",
-      `python voice_call.py --mode server --port ${room.public_port}`
-    ].join("\n")
-  );
-
-  writeCommand(
     "joinPublicCommand",
     [
-      "Linux / WSL:",
-      `python3 voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`,
-      "",
       "Windows:",
-      `python voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`
+      `python voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`,
+      "",
+      "Linux / WSL:",
+      `python3 voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`
     ].join("\n")
   );
 
@@ -200,14 +185,15 @@ function renderCommandBlocks(room) {
 }
 
 function renderClientCommands(room) {
+  const backendUrl = state.apiBase;
   writeCommand(
-    "clientCommand",
+    "joinPublicCommand",
     [
-      "Linux / WSL:",
-      `python3 voice_call.py --mode client --host ${room.public_host} --port ${room.public_port}`,
-      "",
       "Windows:",
-      `python voice_call.py --mode client --host ${room.public_host} --port ${room.public_port}`
+      `python voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`,
+      "",
+      "Linux / WSL:",
+      `python3 voice_call.py join-public --backend-url ${backendUrl} --room-code ${room.room_code}`
     ].join("\n")
   );
 }

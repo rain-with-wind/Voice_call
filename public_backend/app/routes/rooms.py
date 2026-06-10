@@ -25,21 +25,17 @@ def register_room():
     """
     payload = request.get_json(silent=True) or {}
     name = (payload.get("name") or "").strip()
-    public_host = (payload.get("public_host") or "").strip()
+    public_host = (payload.get("public_host") or "relay").strip()
     owner_name = (payload.get("owner_name") or "").strip()
     notes = (payload.get("notes") or "").strip()
 
     try:
-        public_port = int(payload.get("public_port", 5000))
+        public_port = int(payload.get("public_port", 0))
     except (TypeError, ValueError):
-        return jsonify({"error": "public_port must be an integer"}), 400
+        public_port = 0
 
     if not name:
         return jsonify({"error": "Room name is required"}), 400
-    if not public_host:
-        return jsonify({"error": "public_host is required"}), 400
-    if public_port < 1 or public_port > 65535:
-        return jsonify({"error": "public_port must be between 1 and 65535"}), 400
 
     room, manage_token = create_room(name, public_host, public_port, owner_name, notes)
     return (

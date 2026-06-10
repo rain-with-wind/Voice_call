@@ -31,18 +31,16 @@ def build_parser():
 
     subparsers = parser.add_subparsers(dest="command")
 
-    host_parser = subparsers.add_parser("host-public", help="Register a public room on the backend and start the audio server")
-    host_parser.add_argument("--backend-url", required=True, help="Public backend base URL, for example https://voice.example.com")
+    host_parser = subparsers.add_parser("host-public", help="Register a room on the backend and start WebSocket audio")
+    host_parser.add_argument("--backend-url", required=True, help="Public backend base URL, e.g. http://127.0.0.1:8100")
     host_parser.add_argument("--room-name", required=True, help="Display name of the room")
-    host_parser.add_argument("--public-host", help="Public domain clients should connect to")
-    host_parser.add_argument("--bind-host", default="0.0.0.0", help="Local bind host for the audio server")
     host_parser.add_argument("--owner-name", default="", help="Owner display name")
     host_parser.add_argument("--notes", default="", help="Optional room notes")
     _add_audio_args(host_parser)
 
-    join_parser = subparsers.add_parser("join-public", help="Look up a room from the backend and connect by domain")
+    join_parser = subparsers.add_parser("join-public", help="Join a room by code via WebSocket audio")
     join_parser.add_argument("--backend-url", required=True, help="Public backend base URL")
-    join_parser.add_argument("--room-code", required=True, help="Room code returned by the backend")
+    join_parser.add_argument("--room-code", required=True, help="Room code from the backend")
     _add_audio_args(join_parser)
 
     list_parser = subparsers.add_parser("list-rooms", help="List active public rooms on the backend")

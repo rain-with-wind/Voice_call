@@ -10,6 +10,7 @@ from .config import Config
 from .database import ensure_database, init_app as init_database
 from .routes.health import bp as health_bp
 from .routes.rooms import bp as rooms_bp
+from .routes.voice import bp as voice_bp, init_sock
 
 
 def create_app():
@@ -26,6 +27,8 @@ def create_app():
 
     app.register_blueprint(health_bp)
     app.register_blueprint(rooms_bp)
+    app.register_blueprint(voice_bp)
+    init_sock(app)
 
     @app.after_request
     def add_headers(response):
