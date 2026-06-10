@@ -90,8 +90,8 @@ def host_public_room(args):
         stop_event.set()
         try:
             backend.close_room(room["room"]["room_code"], room["manage_token"])
-        except RuntimeError as exc:
-            print(warning(f"Room close request failed: {exc}"))
+        except Exception:
+            pass  # ignore close failures (timeout, connection error, etc.)
 
 
 def join_public_room(args):

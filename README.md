@@ -1,124 +1,135 @@
-# Voice Call CLI New Architecture Pack
+# Voice Call CLI
 
-## What This Folder Is
+基于 WebSocket 音频引擎 + Flask 房间协调后端的语音通话工具，支持 Windows / WSL / Linux。
 
-This folder is a curated package of the code and documents that are actually
-useful for the current recommended architecture.
+## 可用命令
 
-Source project:
+| 命令 | 说明 |
+|------|------|
+| `host-public` | 创建房间，等待对方加入（服务端） |
+| `join-public` | 通过房间码加入房间（客户端） |
+| `list-rooms` | 查看在线房间列表 |
+| `backend-health` | 检查后端是否正常 |
+| `device-info` | 查看本机设备信息 |
+| `--mode server/client` | 局域网 TCP 直连（旧版模式） |
 
-- `D:\QQ\Downloads\Voice_call\Voice_call_cli`
+## 环境准备
 
-Packaged folder:
+### Windows
 
-- `D:\QQ\Downloads\Voice_call\Voice_call_cli_new_architecture`
-
-## What Was Kept
-
-- CLI entrypoint and command parsing
-- WebSocket voice call engine
-- Public backend code
-- Minimal deployment scripts
-- Core docs for API, deployment, and the new architecture
-
-## What Was Intentionally Left Out
-
-- old sibling projects outside `Voice_call_cli`
-- virtual environments
-- `__pycache__` and `.pyc` files
-- unrelated governance files such as code of conduct and contributing docs
-- extra smoke-test and GUI-browser helper scripts
-- all old frontend assets and frontend-serving backend glue
-
-## Runtime Roles
-
-This pack is centered on three roles:
-
-1. Host backend
-   - runs locally on the host machine
-   - is exposed to the internet through `ngrok`
-2. Host caller
-   - creates a room with `host-public`
-3. Join caller
-   - joins the room with `join-public`
-
-This pack is now CLI-only.
-The old browser frontend has been removed.
-
-## Most Important Files
-
-- `voice_call.py`
-- `voice_call_cli/cli.py`
-- `voice_call_cli/public_commands.py`
-- `voice_call_cli/ws_engine.py`
-- `public_backend/app/__init__.py`
-- `public_backend/app/routes/rooms.py`
-- `public_backend/app/routes/voice.py`
-- `deploy/public/setup_backend_wsl.sh`
-- `deploy/public/run_backend_wsl.sh`
-- `deploy/wsl/setup_wsl.sh`
-- `docs/NEW_ARCHITECTURE_GUIDE.md`
-
-## Fast Start
-
-### Host machine
-
-Prepare backend dependencies:
-
-```powershell
-wsl bash -lc "cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli_new_architecture && bash deploy/public/setup_backend_wsl.sh"
+```bash
+cd d:\python\pythonproject\Voice_call
+pip install -r requirements.txt
+pip install flask flask-sock
 ```
 
-Prepare CLI dependencies:
+### WSL / Linux
 
-```powershell
-wsl bash -lc "cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli_new_architecture && bash deploy/wsl/setup_wsl.sh"
+```bash
+sudo apt-get update
+sudo apt-get install -y python3 python3-venv python3-pip portaudio19-dev
+
+# 语音 CLI
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 后端
+python3 -m venv .venv-backend && source .venv-backend/bin/activate
+pip install -r requirements-backend.txt
 ```
 
-Start the backend:
+## 本地使用
 
-```powershell
-wsl bash -lc "cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli_new_architecture && bash deploy/public/run_backend_wsl.sh"
+### 1. 启动后端
+
+**Windows：**
+
+```bash
+cd d:\python\pythonproject\Voice_call\public_backend
+python run.py
 ```
 
-Expose it with `ngrok`:
+**WSL / Linux：**
 
-```powershell
+```bash
+bash deploy/public/run_backend_wsl.sh
+```
+
+后端监听 `http://127.0.0.1:8100`，浏览器打开可见房间管理页面。
+
+### 2. 发起通话
+
+服务端创建房间：
+
+```bash
+python voice_call.py host-public --backend-url http://127.0.0.1:8100 --room-name 我的房间
+```
+
+客户端加入房间：
+
+```bash
+python voice_call.py join-public --backend-url http://127.0.0.1:8100 --room-code <房间码>
+```
+
+查看在线房间：
+
+```bash
+python voice_call.py list-rooms --backend-url http://127.0.0.1:8100
+```
+
+## 公网部署（ngrok）
+
+只需一条 ngrok HTTP 隧道，语音通过 WebSocket 自动走同一通道。
+
+### 步骤 1：启动后端
+
+```bash
+cd d:\python\pythonproject\Voice_call\public_backend
+python run.py
+```
+
+### 步骤 2：启动 ngrok
+
+```bash
 ngrok http 8100
 ```
 
-Create a room:
+记下输出的地址 `https://xxxx-xxx.ngrok-free.app`。
 
-```powershell
-wsl bash -lc "cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli_new_architecture && . .venv/bin/activate && python3 voice_call.py host-public --backend-url https://xxxx.ngrok-free.app --room-name demo-room"
+### 步骤 3：通话
+
+服务端：
+
+```bash
+python voice_call.py host-public --backend-url https://xxxx-xxx.ngrok-free.app --room-name 测试房间
 ```
 
-### Join machine
+客户端：
 
-Prepare CLI dependencies:
-
-```powershell
-wsl bash -lc "cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli_new_architecture && bash deploy/wsl/setup_wsl.sh"
+```bash
+python voice_call.py join-public --backend-url https://xxxx-xxx.ngrok-free.app --room-code <房间码>
 ```
 
-Join the room:
+### 部署一览
 
-```powershell
-wsl bash -lc "cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_cli_new_architecture && . .venv/bin/activate && python3 voice_call.py join-public --backend-url https://xxxx.ngrok-free.app --room-code ABC123"
+```
+终端 1：cd public_backend && python run.py
+终端 2：ngrok http 8100
+
+服务端                             客户端
+┌──────────────┐                   ┌──────────────┐
+│ Flask + WS   │                   │              │
+│     ↓        │                   │              │
+│ ngrok HTTP   │─── 互联网 ───────→│ join-public  │
+└──────────────┘                   └──────────────┘
 ```
 
-## Documentation
+## 注意事项
 
-- Architecture and step-by-step commands:
-  `docs/NEW_ARCHITECTURE_GUIDE.md`
-- Backend API details:
-  `docs/API.md`
-- Deployment notes:
-  `docs/DEPLOYMENT.md`
+- 保持后端和 ngrok 终端持续运行
+- ngrok 免费版重启后 URL 会变化，需重新告知对方
+- 局域网内推荐用 `--mode server/client` TCP 直连，延迟更低
 
-## Notes
+## 许可证
 
-- Keep the backend terminal running.
-- Keep the `ngrok` terminal running.
-- Keep the host `host-public` terminal running.
-- If the `ngrok` URL changes, both sides must switch to the new backend URL.
+MIT License

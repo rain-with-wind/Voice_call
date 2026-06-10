@@ -1,5 +1,4 @@
 """WebSocket voice relay for room-based audio streaming."""
-import json
 import threading
 
 from flask import Blueprint
@@ -7,7 +6,6 @@ from flask_sock import Sock
 
 bp = Blueprint("voice", __name__, url_prefix="/api/voice")
 
-# Room relay: {room_code: {role: ws, ...}}
 _rooms = {}
 _lock = threading.Lock()
 
@@ -21,46 +19,43 @@ def init_sock(app):
             ws.close(4000, "Invalid role")
             return
 
-        other_role = "client" if role == "host" else "host"
+        other = "client" if role == "host" else "host"
 
         with _lock:
             room = _rooms.setdefault(room_code, {})
             room[role] = ws
+            peer = room.get(other)
+            if not peer:
+                room["_ready"] = threading.Event()
 
-        try:
-            peer = room.get(other_role)
-            if peer:
-                # Both sides connected, relay bidirectionally
-                _relay(ws, peer)
-            else:
-                # Wait for peer to connect
-                _wait_peer(ws)
-        finally:
-            with _lock:
-                room.pop(role, None)
-                if not room:
-                    _rooms.pop(room_code, None)
+        if peer:
+            # Second peer — wake up the first peer that's waiting
+            ready = room.get("_ready")
+            if ready:
+                ready.set()
+        else:
+            # First peer — wait for second peer to arrive
+            room["_ready"].wait(timeout=120)
+
+        peer = room.get(other)
+        if peer:
+            _relay(ws, peer)
+
+        with _lock:
+            room.pop(role, None)
+            room.pop("_ready", None)
+            if not room:
+                _rooms.pop(room_code, None)
 
     return sock
-
-
-def _wait_peer(ws):
-    """Keep connection alive while waiting for peer."""
-    try:
-        while True:
-            data = ws.receive(timeout=5)
-            if data is None:
-                continue
-    except Exception:
-        pass
 
 
 def _relay(ws_a, ws_b):
     """Bidirectional relay between two WebSocket peers."""
 
-    def forward(src, dst):
+    def forward(src, dst, stop):
         try:
-            while True:
+            while not stop.is_set():
                 data = src.receive(timeout=1)
                 if data is None:
                     continue
@@ -69,9 +64,12 @@ def _relay(ws_a, ws_b):
                 dst.send(data)
         except Exception:
             pass
+        finally:
+            stop.set()
 
-    t1 = threading.Thread(target=forward, args=(ws_a, ws_b), daemon=True)
-    t2 = threading.Thread(target=forward, args=(ws_b, ws_a), daemon=True)
+    stop = threading.Event()
+    t1 = threading.Thread(target=forward, args=(ws_a, ws_b, stop), daemon=True)
+    t2 = threading.Thread(target=forward, args=(ws_b, ws_a, stop), daemon=True)
     t1.start()
     t2.start()
     t1.join()

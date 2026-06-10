@@ -62,9 +62,7 @@ class VoiceCallWS:
                 ws.send_binary(data)
                 self.stats.add_sent(len(data))
                 self.stats.set_volume(self._calculate_volume(data))
-            except Exception as exc:
-                if not self.exit_event.is_set():
-                    print(error(f"\n[ERR] Send failed: {exc}"))
+            except Exception:
                 self.exit_event.set()
                 break
 
@@ -72,14 +70,12 @@ class VoiceCallWS:
         while not self.exit_event.is_set():
             try:
                 opcode, data = ws.recv_data()
-                if opcode == 8:  # close
+                if opcode == 8:
                     break
-                if opcode == 2:  # binary
+                if opcode == 2:
                     self.stats.add_received(len(data))
                     self.play_stream.write(data)
-            except Exception as exc:
-                if not self.exit_event.is_set():
-                    print(error(f"\n[ERR] Receive failed: {exc}"))
+            except Exception:
                 self.exit_event.set()
                 break
 
