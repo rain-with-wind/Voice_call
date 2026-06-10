@@ -2,9 +2,7 @@
 @brief Flask application factory for the public room coordination backend.
 """
 
-from pathlib import Path
-
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 
 from .config import Config
 from .database import ensure_database, init_app as init_database
@@ -18,8 +16,7 @@ def create_app():
 
     @return Flask Fully configured backend application.
     """
-    frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
-    app = Flask(__name__, static_folder=str(frontend_dir / "assets"), static_url_path="/assets")
+    app = Flask(__name__)
     app.config.from_object(Config)
 
     init_database(app)
@@ -57,16 +54,14 @@ def create_app():
 
     @app.get("/")
     def index():
-        """@brief Serve the single-page frontend entry document."""
-        return send_from_directory(frontend_dir, "index.html")
-
-    @app.get("/room/<room_code>")
-    def room_page(room_code):
-        """@brief Serve the frontend for room-detail deep links.
-
-        @param room_code Room code embedded in the URL path.
-        @return Response Frontend HTML document.
-        """
-        return send_from_directory(frontend_dir, "index.html")
+        """@brief Return a minimal root payload for CLI-first deployments."""
+        return jsonify(
+            {
+                "ok": True,
+                "service": "public-voice-call-backend",
+                "mode": "cli-only",
+                "health": "/api/health",
+            }
+        )
 
     return app

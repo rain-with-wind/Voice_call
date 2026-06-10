@@ -43,7 +43,7 @@ def join_room(room_code, room_ttl_seconds, participant_ttl_seconds, client_ip, d
     @param room_ttl_seconds Active-room TTL threshold.
     @param participant_ttl_seconds Active-participant TTL threshold.
     @param client_ip Source IP address used for identity reuse.
-    @param device_token Stable frontend-generated device token.
+    @param device_token Stable client-generated device token.
     @param display_name Optional participant display name.
     @return tuple[dict|None, dict|None, bool] Active room, participant metadata, and whether an existing session was reused.
     """
@@ -260,7 +260,7 @@ def get_existing_active_participant(room_code, client_ip, device_token, particip
 
     @param room_code User-facing room code.
     @param client_ip Source IP address.
-    @param device_token Stable frontend-generated device token.
+    @param device_token Stable client-generated device token.
     @param participant_ttl_seconds Maximum participant idle age.
     @return dict|None Serialized participant record when available.
     """
@@ -386,7 +386,7 @@ def get_or_create_identity(client_ip, device_token=""):
     """@brief Resolve a stable UID and display name for a device or IP.
 
     @param client_ip Source IP address.
-    @param device_token Stable frontend-generated device token.
+    @param device_token Stable client-generated device token.
     @return dict Identity payload containing `uid` and `display_name`.
     """
     normalized_ip = (client_ip or "").strip() or "unknown"
