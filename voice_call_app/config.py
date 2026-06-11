@@ -14,6 +14,8 @@ class VoiceCallConfig:
     use_encryption: bool = False
     socket_timeout: float = 0.5
     auth_timeout: float = 10.0
+    input_device_index: int | None = None
+    output_device_index: int | None = None
 
     @property
     def frame_size(self) -> int:

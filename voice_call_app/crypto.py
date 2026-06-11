@@ -1,4 +1,4 @@
-"""Authentication and optional symmetric encryption helpers."""
+"""认证与可选对称加密。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from .console import error, success, warning
 
 
 class SecurityContext:
-    """Manage password authentication and optional Fernet encryption."""
+    """管理密码认证和可选的 Fernet 端到端加密。"""
 
     def __init__(self, password: str | None, use_encryption: bool) -> None:
         self.password = password
@@ -44,7 +44,7 @@ class SecurityContext:
             self.fernet = Fernet(key)
             return salt
         except Exception as exc:
-            print(warning(f"[WARN] Failed to initialize encryption: {exc}"))
+            print(warning(f"[警告] 加密初始化失败: {exc}"))
             self.use_encryption = False
             self.fernet = None
             return None
@@ -56,44 +56,44 @@ class SecurityContext:
         try:
             conn.settimeout(timeout)
             if is_server:
-                print("[WAIT] Waiting for password authentication...")
+                print("[等待] 等待客户端密码认证...")
                 raw = conn.recv(4096)
                 if not raw:
-                    print(error("[ERR] No authentication payload received."))
+                    print(error("[错误] 未收到认证数据"))
                     return False
                 try:
                     message = raw.decode()
                 except Exception:
-                    print(error("[ERR] Authentication payload is not valid UTF-8."))
+                    print(error("[错误] 认证数据解码失败"))
                     return False
 
                 if not message.startswith("AUTH:"):
-                    print(error("[ERR] Unsupported authentication payload."))
+                    print(error("[错误] 不支持的认证协议"))
                     return False
 
                 received_hash = message[5:]
                 if received_hash == self._hash_password(self.password):
                     conn.sendall(b"AUTH:OK")
-                    print(success("[OK] Authentication accepted."))
+                    print(success("[认证] 密码正确，认证通过"))
                     return True
 
                 conn.sendall(b"AUTH:FAIL")
-                print(error("[ERR] Authentication failed: wrong password."))
+                print(error("[错误] 密码错误，认证失败"))
                 return False
 
             conn.sendall(f"AUTH:{self._hash_password(self.password)}".encode())
             response = conn.recv(4096).decode()
             if response == "AUTH:OK":
-                print(success("[OK] Authentication accepted."))
+                print(success("[认证] 密码正确，认证通过"))
                 return True
 
-            print(error("[ERR] Authentication failed: wrong password."))
+            print(error("[错误] 密码错误，认证失败"))
             return False
         except socket.timeout:
-            print(error("[ERR] Authentication timed out."))
+            print(error("[错误] 认证超时"))
             return False
         except Exception as exc:
-            print(error(f"[ERR] Authentication error: {exc}"))
+            print(error(f"[错误] 认证异常: {exc}"))
             return False
 
     @staticmethod

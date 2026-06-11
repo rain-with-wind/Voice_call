@@ -1,4 +1,4 @@
-"""Audio device management helpers."""
+"""音频设备管理（麦克风 / 扬声器）。"""
 
 from __future__ import annotations
 
@@ -8,30 +8,43 @@ import os
 import pyaudio
 
 from .config import VoiceCallConfig
-from .console import info
+from .console import Colors, colored, info, warning
 
 
 class AudioIO:
-    """Own the PyAudio instance and both input/output streams."""
+    """管理 PyAudio 实例和输入/输出音频流。"""
 
     def __init__(self, config: VoiceCallConfig) -> None:
         self.config = config
         self.audio: pyaudio.PyAudio | None = None
         self.play_stream = None
         self.record_stream = None
+        self._input_device_name: str = "?"
 
     def start(self) -> None:
         if self.audio is None:
             self.audio = pyaudio.PyAudio()
 
-        print(info(f"[AUDIO] rate={self.config.rate}, channels={self.config.channels}, chunk={self.config.chunk}"))
-        output_device_index = self._pick_device_index(is_input=False)
-        input_device_index = self._pick_device_index(is_input=True)
+        print(info(f"[音频] {self.config.rate}Hz / {self.config.channels} 声道 / 帧长 {self.config.chunk}"))
+
+        # 列出所有音频设备
+        self._list_devices()
+
+        output_device_index = self.config.output_device_index
+        if output_device_index is None:
+            output_device_index = self._pick_device_index(is_input=False)
+
+        input_device_index = self.config.input_device_index
+        if input_device_index is None:
+            input_device_index = self._pick_device_index(is_input=True)
 
         if output_device_index is not None:
-            print(info(f"[AUDIO] output_device={self.audio.get_device_info_by_index(output_device_index).get('name')}"))
+            name = self.audio.get_device_info_by_index(output_device_index).get("name", "?")
+            print(info(f"[输出] {name}"))
         if input_device_index is not None:
-            print(info(f"[AUDIO] input_device={self.audio.get_device_info_by_index(input_device_index).get('name')}"))
+            name = self.audio.get_device_info_by_index(input_device_index).get("name", "?")
+            self._input_device_name = name
+            print(info(f"[输入] {name}"))
 
         self.play_stream = self.audio.open(
             format=pyaudio.paInt16,
@@ -91,6 +104,62 @@ class AudioIO:
 
         rms = (sum(sample * sample for sample in samples) / len(samples)) ** 0.5
         return min(1.0, rms / 32768.0)
+
+    # ---- 设备选择 ----
+
+    @staticmethod
+    def list_devices_static() -> None:
+        """仅列出所有音频设备（无需完整初始化）。"""
+        audio = pyaudio.PyAudio()
+        count = audio.get_device_count()
+        if count == 0:
+            print(warning("[音频] 未检测到任何音频设备！"))
+            audio.terminate()
+            return
+
+        default_in = audio.get_default_input_device_info()
+        default_out = audio.get_default_output_device_info()
+        print(info(f"[音频] 共 {count} 个设备 (默认输入: {default_in.get('name')}, 默认输出: {default_out.get('name')}):"))
+        for i in range(count):
+            dev = audio.get_device_info_by_index(i)
+            name = dev.get("name", "?")
+            inp = int(dev.get("maxInputChannels", 0))
+            out = int(dev.get("maxOutputChannels", 0))
+            tags = []
+            if inp > 0:
+                tags.append(colored(f"输入×{inp}", Colors.GREEN))
+            if out > 0:
+                tags.append(colored(f"输出×{out}", Colors.CYAN))
+            tag_str = " / ".join(tags) if tags else "—"
+            marker = ""
+            if i == default_in.get("index"):
+                marker = colored(" ← 默认输入", Colors.YELLOW)
+            if i == default_out.get("index"):
+                marker += colored(" ← 默认输出", Colors.YELLOW)
+            print(f"  [{i}] {name}  [{tag_str}]{marker}")
+        audio.terminate()
+
+    def _list_devices(self) -> None:
+        if self.audio is None:
+            return
+        count = self.audio.get_device_count()
+        if count == 0:
+            print(warning("[音频] 未检测到任何音频设备！"))
+            return
+
+        print(info(f"[音频] 共检测到 {count} 个设备:"))
+        for i in range(count):
+            dev = self.audio.get_device_info_by_index(i)
+            name = dev.get("name", "?")
+            inp = int(dev.get("maxInputChannels", 0))
+            out = int(dev.get("maxOutputChannels", 0))
+            tags = []
+            if inp > 0:
+                tags.append(colored("输入", Colors.GREEN))
+            if out > 0:
+                tags.append(colored("输出", Colors.CYAN))
+            tag_str = " / ".join(tags) if tags else "—"
+            print(f"  [{i}] {name}  [{tag_str}]")
 
     def _pick_device_index(self, *, is_input: bool) -> int | None:
         if self.audio is None:
