@@ -1,111 +1,69 @@
-# Development Notes
+# 开发指南
 
-## English
+## 项目结构
 
-## Refactoring Goals
-
-This refactor focuses on readability and maintainability rather than feature
-expansion.
-
-Main goals:
-
-- separate responsibilities by file
-- reduce the size of the main runtime class
-- make security, audio, and CLI parsing easier to inspect
-- make the project easier to document and publish
-
-## Suggested Local Checks
-
-Windows PowerShell:
-
-```powershell
-py -3 -m compileall .\voice_call.py .\voice_call_app .\tools
+```
+Voice_call/
+├── docs/                  # 文档
+│   ├── ARCHITECTURE.md    # 架构说明
+│   ├── USAGE.md           # 使用指南
+│   ├── DEVELOPMENT.md     # 开发指南（本文件）
+│   └── TESTING.md         # 测试说明
+├── voice_call_app/        # 核心代码
+│   ├── __init__.py
+│   ├── cli.py             # 命令行解析
+│   ├── config.py          # 配置数据类
+│   ├── console.py         # 终端颜色工具
+│   ├── windows.py         # Windows UTF-8 设置
+│   ├── crypto.py          # 认证与加密
+│   ├── audio.py           # 音频设备管理
+│   ├── stats.py           # 运行时统计
+│   └── engine.py          # 核心引擎
+├── voice_call.py          # 入口文件
+├── requirements.txt       # Python 依赖
+├── LICENSE                # MIT 许可证
+└── README.md
 ```
 
-WSL:
+## 环境设置
 
 ```bash
-cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_refactored
-/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3 -m compileall voice_call.py voice_call_app tools
+# 克隆仓库
+git clone <repo-url>
+cd Voice_call
+
+# 安装依赖
+pip install -r requirements.txt
 ```
 
-## Recommended Manual Checks
-
-- verify `voice_call.py --help`
-- verify audio input and output can both be opened
-- verify local loopback server/client
-- verify cross-system Windows <-> WSL behavior when relevant
-- verify old-script compatibility with `--rate 44100 --channels 2`
-
-## Notes About Windows and WSL
-
-- On Windows, the project has been validated with `py -3`.
-- On WSL, the current validated path is
-  `/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3`.
-- WSL audio may print ALSA/JACK noise during probing; this does not
-  automatically mean the call failed.
-- Python 3.10+ is currently required by the present codebase.
-
-## Future Improvements
-
-- add automated tests for packet framing and authentication
-- add structured logging instead of print-heavy runtime output
-- add device listing and explicit device selection
-- make volume bar output more encoding-safe for redirected Windows logs
-- add a compatibility preset for the old single-file script
-- optionally package the tool with `pyproject.toml`
-
----
-
-## 中文
-
-## 重构目标
-
-这次重构主要关注可读性和可维护性，而不是扩展新功能。
-
-主要目标：
-
-- 按职责拆分文件
-- 缩小主运行时类的体积
-- 让安全、音频和命令行解析逻辑更容易检查
-- 让项目更容易写文档和开源发布
-
-## 建议的本地检查
-
-Windows PowerShell：
+## 代码检查
 
 ```powershell
-py -3 -m compileall .\voice_call.py .\voice_call_app .\tools
+# 编译检查所有 Python 文件
+python -m compileall voice_call.py voice_call_app
 ```
 
-WSL：
+## 手工验证清单
 
-```bash
-cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_refactored
-/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3 -m compileall voice_call.py voice_call_app tools
-```
+- [ ] `python voice_call.py --help` 正常输出
+- [ ] `python voice_call.py --list-devices` 列出设备
+- [ ] 本机回环：两个终端分别启动 server / client 能通话
+- [ ] 跨机器：Windows ↔ WSL 或 Windows ↔ Linux
+- [ ] 加密模式：`--encrypt --password test` 双方互通
 
-## 建议的手工验证
+## 添加新功能
 
-- 验证 `voice_call.py --help`
-- 验证音频输入和输出都能打开
-- 验证本机回环 server/client
-- 在需要时验证 Windows <-> WSL 跨系统行为
-- 使用 `--rate 44100 --channels 2` 验证与旧版单文件的兼容性
+1. 在对应的模块中添加代码
+2. 如需新依赖，更新 `requirements.txt`
+3. 如需新 CLI 参数，在 `cli.py` 中添加并在 `config.py` 中添加对应字段
+4. 更新相关文档
+5. 运行 `python -m compileall voice_call.py voice_call_app` 确保无语法错误
 
-## 关于 Windows 和 WSL 的说明
+## 依赖说明
 
-- Windows 端目前已经用 `py -3` 验证过。
-- WSL 端当前已经验证可用的路径是
-  `/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3`。
-- WSL 探测音频设备时会打印大量 ALSA/JACK 噪声，这不自动等于通话失败。
+| 包 | 版本 | 用途 |
+|----|------|------|
+| `pyaudio` | 0.2.14 | 音频采集与播放（PortAudio 绑定） |
+| `cryptography` | 41.0.7 | Fernet 加密与 PBKDF2 密钥派生 |
 
-## 后续可改进项
-
-- 为封包和认证补自动化测试
-- 用结构化日志替代大量 `print`
-- 增加设备列表和显式设备选择
-- 让音量条在 Windows 重定向日志时更安全地处理编码
-- 增加面向旧版单文件的兼容预设
-- 视需要增加 `pyproject.toml` 打包配置
-- 如果需要支持 Python 3.9，需要单独调整类型标注和 dataclass 用法
+仅使用 Python 标准库和以上两个第三方包。
