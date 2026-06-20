@@ -6,15 +6,12 @@
 
 ```text
 Voice_call/
-├── docs/                  # 项目文档
+├── docs/                  # 项目文档、报告、协作说明和安全说明
 ├── tools/                 # 环境排查和测试脚本
 ├── voice_call_app/        # 核心代码包
 ├── voice_call.py          # 入口文件
 ├── requirements.txt       # 依赖声明
 ├── README.md              # 主说明文档
-├── CONTRIBUTING.md        # 贡献说明
-├── SECURITY.md            # 安全说明
-├── CHANGELOG.md           # 变更记录
 └── LICENSE                # MIT 许可证
 ```
 
@@ -104,7 +101,7 @@ python voice_call.py --list-devices
 1. 优先修改 `crypto.py`
 2. 保持 `engine.py` 中调用接口尽量稳定
 3. 测试普通模式、密码认证模式、加密模式和错误密码场景
-4. 更新 `SECURITY.md`
+4. 更新 `docs/SECURITY.md`
 
 ## 7. 依赖管理
 

@@ -3,7 +3,7 @@
 - 作者：魏云龙 2024302121012；占曜宇 2024302061113
 - 所属课程：武汉大学开源软件与技术课程 2026
 
-一个基于 Python 的 TCP 双向语音通话项目。项目支持一端作为服务端监听，另一端作为客户端连接，连接建立后通过 PyAudio 采集和播放 16-bit PCM 音频数据。为了让项目更接近可维护的开源项目结构，我把入口、配置、音频、加密、统计和核心通信逻辑拆分到了独立模块中，并补充了使用、测试、开发和安全说明。
+一个基于 Python 的 TCP 双向语音通话项目。项目支持一端作为服务端监听，另一端作为客户端连接，连接建立后通过 PyAudio 采集和播放 16-bit PCM 音频数据。仓库根目录只保留运行入口和必要项目文件，详细说明统一放在 `docs/` 目录中，便于查看和维护。
 
 ## 项目简介
 
@@ -128,8 +128,12 @@ python voice_call.py --mode server --port 5000 --input-device 0 --output-device 
 Voice_call/
 ├── docs/
 │   ├── ARCHITECTURE.md        # 架构说明
+│   ├── CHANGELOG.md           # 变更记录
+│   ├── CODE_OF_CONDUCT.md     # 行为准则
+│   ├── CONTRIBUTING.md        # 贡献说明
 │   ├── DEVELOPMENT.md         # 开发说明
 │   ├── EXPERIMENT_REPORT.md   # 实验报告
+│   ├── SECURITY.md            # 安全说明
 │   ├── TESTING.md             # 测试说明
 │   └── USAGE.md               # 使用说明
 ├── tools/
@@ -147,10 +151,6 @@ Voice_call/
 │   └── windows.py             # Windows 终端兼容处理
 ├── voice_call.py              # 程序入口
 ├── requirements.txt
-├── CONTRIBUTING.md
-├── CODE_OF_CONDUCT.md
-├── SECURITY.md
-├── CHANGELOG.md
 └── LICENSE
 ```
 
@@ -161,8 +161,10 @@ Voice_call/
 - [测试说明](./docs/TESTING.md)：本机、跨系统、加密和异常场景测试
 - [开发说明](./docs/DEVELOPMENT.md)：开发环境、代码规范和修改流程
 - [实验报告](./docs/EXPERIMENT_REPORT.md)：项目背景、设计实现、测试结果和总结
-- [贡献指南](./CONTRIBUTING.md)：Issue、分支、提交和 Pull Request 规范
-- [安全策略](./SECURITY.md)：安全模型、局限和漏洞反馈方式
+- [贡献指南](./docs/CONTRIBUTING.md)：Issue、分支、提交和 Pull Request 规范
+- [安全策略](./docs/SECURITY.md)：安全模型、局限和漏洞反馈方式
+- [行为准则](./docs/CODE_OF_CONDUCT.md)：协作沟通的基本规则
+- [变更记录](./docs/CHANGELOG.md)：项目主要改动记录
 
 ## 测试方式
 

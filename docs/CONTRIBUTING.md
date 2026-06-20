@@ -77,7 +77,7 @@ feat: add manual output device option
 - 不把无关修改混在一个 PR 里
 - 新增依赖需要更新 `requirements.txt`
 - 新增 CLI 参数需要更新 README 和使用说明
-- 修改安全相关逻辑需要更新 `SECURITY.md`
+- 修改安全相关逻辑需要更新 `docs/SECURITY.md`
 - 修改通信或音频逻辑后需要做本机回环测试
 
 ## 提交前检查
