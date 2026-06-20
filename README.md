@@ -1,272 +1,48 @@
-# Voice Call Refactored
+# Voice_call
 
-## English
+- 作者：魏云龙 2024302121012；占曜宇 2024302061113
+- 所属课程：武汉大学开源软件与技术课程 2026
 
-`Voice Call Refactored` is a cleaned-up multi-file version of a direct TCP
-voice call script.
+一个基于 Python 的 TCP 双向语音通话项目。项目支持一端作为服务端监听，另一端作为客户端连接，连接建立后通过 PyAudio 采集和播放 16-bit PCM 音频数据。为了让项目更接近可维护的开源项目结构，我把入口、配置、音频、加密、统计和核心通信逻辑拆分到了独立模块中，并补充了使用、测试、开发和安全说明。
 
-It keeps the original model:
+## 项目简介
 
-- one side runs as a TCP server
-- the other side connects as a TCP client
-- audio is captured and played with PyAudio
-- an optional shared password enables authentication
-- optional Fernet encryption can be enabled when a password is provided
+本项目的主要目标是实现一个可以在本机、局域网、Windows 与 WSL 环境中运行的简易语音通话工具。它不是完整的会议系统，也不包含 NAT 穿透、账号体系或房间管理，而是聚焦在最核心的点对点音频链路上：
 
-This repository is designed to be easier to read, maintain, test, and publish
-than the original single-file script.
+- 服务端通过 TCP socket 等待客户端连接
+- 客户端连接服务端 IP 和端口
+- 双方分别启动麦克风采集线程和扬声器播放线程
+- 音频数据按“长度前缀 + 数据负载”的格式发送
+- 可选使用共享密码进行认证
+- 可选基于密码派生 Fernet 密钥进行加密
 
-## Features
+## 功能特点
 
-- Direct TCP duplex voice call
-- Optional password-based authentication
-- Optional symmetric encryption using `cryptography`
-- Modular package layout
-- Windows console UTF-8 helper
-- Practical WSL troubleshooting probes
+- 支持 `server` 和 `client` 两种运行模式
+- 支持 Windows、Linux、WSL 等常见环境
+- 支持本机回环和局域网点对点通话
+- 支持列出音频设备并手动指定输入/输出设备
+- 支持共享密码认证
+- 支持可选的 Fernet 对称加密
+- 支持实时显示通话时长、上传速率、下载速率和麦克风音量
+- 提供 WSL 音频、socket 和回环测试脚本，方便排查环境问题
 
-## Tested Status
-
-The current code has been tested in the following environments:
-
-- Windows PowerShell with `py -3` on Python `3.13.5`
-- WSL Ubuntu with
-  `/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3` on Python
-  `3.12.3`
-- Windows local loopback: server and client both work
-- WSL local loopback: server and client both work
-- Cross-system:
-  - WSL server -> Windows client: works
-  - Windows server -> WSL client: works
-
-Observed behavior during testing:
-
-- audio input and output both opened successfully on Windows
-- audio input and output both opened successfully in WSL through Pulse/WSLg
-- WSL still prints a large amount of ALSA/JACK noise during device probing, but
-  the call itself works
-
-## Compatibility With the Old Single-File Script
-
-The current refactored version can talk to the old single-file script, but you
-must match the old audio defaults.
-
-Old script defaults:
-
-- `--rate 44100`
-- `--channels 2`
-- `--chunk 1024`
-
-The refactored version defaults to `48000` and `1` channel, so when talking to
-the old script you should start the refactored side with:
-
-```powershell
-py -3 voice_call.py --mode client --host PEER_IP --port 5000 --rate 44100 --channels 2
-```
-
-or:
-
-```powershell
-py -3 voice_call.py --mode server --port 5000 --rate 44100 --channels 2
-```
-
-If password or encryption is enabled, both sides must use the same
-`--password` and the same `--encrypt` setting.
-
-Note that in the current code, encryption is derived from the shared password.
-Using `--encrypt` without `--password` does not create a Fernet key.
-
-## Requirements
+## 环境要求
 
 - Python 3.10+
-- `pyaudio`
-- `cryptography`
-- A working microphone and speaker output
+- 可用的麦克风和扬声器
+- Python 依赖：
+  - `pyaudio==0.2.14`
+  - `cryptography==41.0.7`
 
-On Linux you often need system audio development packages before installing
-`pyaudio`, for example:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y python3-dev portaudio19-dev
-```
-
-## Installation
-
-Windows PowerShell:
-
-```powershell
-py -3 -m pip install -r .\requirements.txt
-```
-
-WSL or Linux:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install -r requirements.txt
-```
-
-## Quick Start
-
-Windows PowerShell server:
-
-```powershell
-py -3 voice_call.py --mode server --port 5000
-```
-
-Windows PowerShell client:
-
-```powershell
-py -3 voice_call.py --mode client --host 192.168.1.100 --port 5000
-```
-
-WSL server using the existing project venv:
-
-```bash
-cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_refactored
-/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3 voice_call.py --mode server --port 5000
-```
-
-WSL client using the existing project venv:
-
-```bash
-cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_refactored
-/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3 voice_call.py --mode client --host 192.168.1.100 --port 5000
-```
-
-Secure call example:
-
-```powershell
-py -3 voice_call.py --mode server --port 5000 --encrypt --password mypassword
-py -3 voice_call.py --mode client --host 192.168.1.100 --port 5000 --encrypt --password mypassword
-```
-
-## Project Layout
-
-```text
-Voice_call_refactored/
-|- docs/
-|  |- ARCHITECTURE.md
-|  |- DEVELOPMENT.md
-|  |- TESTING.md
-|  `- USAGE.md
-|- tools/
-|- voice_call_app/
-|- requirements.txt
-`- voice_call.py
-```
-
-## Documentation
-
-- Architecture overview: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- Usage guide: [docs/USAGE.md](./docs/USAGE.md)
-- Development notes: [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)
-- Testing notes: [docs/TESTING.md](./docs/TESTING.md)
-
-## Limitations
-
-- This is a raw TCP audio tool, not a WebRTC system.
-- NAT traversal is not built in.
-- WSL audio depends on the host WSLg / Pulse setup.
-- There is no room or multi-party call system.
-- The server bind address is fixed in code to `0.0.0.0`.
-- Audio format is fixed to 16-bit PCM. Only rate, channels, and chunk are
-  configurable from the CLI.
-- There is no CLI flag for manual input/output device selection.
-
-## License
-
-This project is released under the MIT License.
-
----
-
-## 中文
-
-`Voice Call Refactored` 是一个把“单文件 TCP 语音通话脚本”拆成多文件后的整理版本。
-
-它保留了原始工作方式：
-
-- 一端作为 TCP 服务端监听
-- 另一端作为 TCP 客户端连接
-- 使用 PyAudio 采集和播放音频
-- 可选共享密码认证
-- 只有在提供密码时才真正启用基于密码派生的 Fernet 加密
-
-这个仓库的目标是比原始单文件版本更容易阅读、维护、测试和开源发布。
-
-## 功能
-
-- 直接基于 TCP 的双向语音通话
-- 可选的基于密码认证
-- 使用 `cryptography` 的可选对称加密
-- 更清晰的模块化结构
-- Windows 终端 UTF-8 兼容处理
-- 面向 WSL 的排查脚本
-
-## 已测试状态
-
-当前代码已经在以下环境中完成验证：
-
-- Windows PowerShell，使用 `py -3`，Python 版本为 `3.13.5`
-- WSL Ubuntu，使用
-  `/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3`，Python 版本为
-  `3.12.3`
-- Windows 本机回环：服务端和客户端都可运行
-- WSL 本机回环：服务端和客户端都可运行
-- 跨系统互通：
-  - WSL 服务端 -> Windows 客户端：可用
-  - Windows 服务端 -> WSL 客户端：可用
-
-测试时观察到的现象：
-
-- Windows 端可以正常打开输入和输出设备
-- WSL 端通过 Pulse/WSLg 也可以正常打开输入和输出设备
-- WSL 在探测音频设备时仍会打印大量 ALSA/JACK 噪声日志，但不影响实际通话
-
-## 与旧版单文件脚本的兼容性
-
-当前重构版可以和旧版单文件脚本互通，但必须把音频参数对齐到旧版默认值。
-
-旧版默认参数为：
-
-- `--rate 44100`
-- `--channels 2`
-- `--chunk 1024`
-
-而当前重构版默认是 `48000` 采样率和 `1` 声道，所以当你要和旧版互通时，重构版必须这样启动：
-
-```powershell
-py -3 voice_call.py --mode client --host 对方IP --port 5000 --rate 44100 --channels 2
-```
-
-或者：
-
-```powershell
-py -3 voice_call.py --mode server --port 5000 --rate 44100 --channels 2
-```
-
-如果启用了密码或加密，则双方的 `--password` 和 `--encrypt` 必须完全一致。
-
-需要特别注意，当前代码里的加密密钥是从共享密码派生出来的，所以单独传
-`--encrypt` 而不传 `--password`，不会真正建立 Fernet 密钥。
-
-## 依赖要求
-
-- Python 3.10 及以上
-- `pyaudio`
-- `cryptography`
-- 可用的麦克风和扬声器输出
-
-在 Linux 上安装 `pyaudio` 前通常需要先安装系统级音频开发包，例如：
+Linux / WSL 下安装 `pyaudio` 前通常需要系统音频开发库：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y python3-dev portaudio19-dev
 ```
 
-## 安装
+## 安装方法
 
 Windows PowerShell：
 
@@ -274,7 +50,7 @@ Windows PowerShell：
 py -3 -m pip install -r .\requirements.txt
 ```
 
-WSL 或 Linux：
+Linux / WSL：
 
 ```bash
 python3 -m venv .venv
@@ -285,71 +61,140 @@ pip install -r requirements.txt
 
 ## 快速开始
 
-Windows PowerShell 服务端：
+先在一台机器上启动服务端：
 
 ```powershell
-py -3 voice_call.py --mode server --port 5000
+python voice_call.py --mode server --port 5000
 ```
 
-Windows PowerShell 客户端：
+再在另一台机器上启动客户端：
 
 ```powershell
-py -3 voice_call.py --mode client --host 192.168.1.100 --port 5000
+python voice_call.py --mode client --host 192.168.1.100 --port 5000
 ```
 
-WSL 服务端，使用现有项目虚拟环境：
-
-```bash
-cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_refactored
-/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3 voice_call.py --mode server --port 5000
-```
-
-WSL 客户端，使用现有项目虚拟环境：
-
-```bash
-cd /mnt/d/QQ/Downloads/Voice_call/Voice_call_refactored
-/mnt/d/QQ/Downloads/Voice_call/Voice_call/.venv/bin/python3 voice_call.py --mode client --host 192.168.1.100 --port 5000
-```
-
-加密通话示例：
+如果只在本机测试，可以把客户端地址写成 `127.0.0.1`：
 
 ```powershell
-py -3 voice_call.py --mode server --port 5000 --encrypt --password mypassword
-py -3 voice_call.py --mode client --host 192.168.1.100 --port 5000 --encrypt --password mypassword
+python voice_call.py --mode client --host 127.0.0.1 --port 5000
 ```
+
+## 加密通话
+
+加密模式需要双方同时指定相同密码：
+
+```powershell
+python voice_call.py --mode server --port 5000 --encrypt --password test123
+python voice_call.py --mode client --host 127.0.0.1 --port 5000 --encrypt --password test123
+```
+
+如果只写 `--encrypt` 而没有提供 `--password`，程序不会生成 Fernet 密钥，实际仍然是普通传输。因此安全模式下必须同时使用 `--encrypt` 和 `--password`。
+
+## 音频设备
+
+列出当前系统中的音频设备：
+
+```powershell
+python voice_call.py --list-devices
+```
+
+手动指定麦克风和扬声器：
+
+```powershell
+python voice_call.py --mode server --port 5000 --input-device 0 --output-device 2
+```
+
+如果出现没有声音、麦克风无输入、设备打开失败等问题，优先检查 `--list-devices` 的输出，并确认选中的设备支持对应的输入或输出通道。
+
+## 常用参数
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `--mode` | 必填 | `server` 表示服务端，`client` 表示客户端 |
+| `--host` | `127.0.0.1` | 客户端连接的服务端地址 |
+| `--port` | `5000` | TCP 端口 |
+| `--password` | 无 | 共享密码，用于认证 |
+| `--encrypt` | 关闭 | 启用 Fernet 加密，需要同时指定密码 |
+| `--rate` | `48000` | 音频采样率 |
+| `--channels` | `1` | 声道数 |
+| `--chunk` | `1024` | 每次采集和发送的音频帧大小 |
+| `--input-device` | 自动选择 | 手动指定输入设备编号 |
+| `--output-device` | 自动选择 | 手动指定输出设备编号 |
+| `--list-devices` | 关闭 | 只列出音频设备后退出 |
 
 ## 项目结构
 
 ```text
-Voice_call_refactored/
-|- docs/
-|  |- ARCHITECTURE.md
-|  |- DEVELOPMENT.md
-|  |- TESTING.md
-|  `- USAGE.md
-|- tools/
-|- voice_call_app/
-|- requirements.txt
-`- voice_call.py
+Voice_call/
+├── docs/
+│   ├── ARCHITECTURE.md        # 架构说明
+│   ├── DEVELOPMENT.md         # 开发说明
+│   ├── EXPERIMENT_REPORT.md   # 实验报告
+│   ├── TESTING.md             # 测试说明
+│   └── USAGE.md               # 使用说明
+├── tools/
+│   ├── wsl_audio_probe.py
+│   ├── wsl_loopback_call_test.py
+│   └── wsl_subprocess_socket_probe.py
+├── voice_call_app/
+│   ├── audio.py               # 音频设备与流管理
+│   ├── cli.py                 # 命令行参数
+│   ├── config.py              # 配置数据类
+│   ├── console.py             # 终端输出工具
+│   ├── crypto.py              # 认证与加密
+│   ├── engine.py              # 通话主流程
+│   ├── stats.py               # 运行统计
+│   └── windows.py             # Windows 终端兼容处理
+├── voice_call.py              # 程序入口
+├── requirements.txt
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+├── CHANGELOG.md
+└── LICENSE
 ```
 
-## 文档
+## 文档导航
 
-- 架构说明：[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- 使用说明：[docs/USAGE.md](./docs/USAGE.md)
-- 开发说明：[docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)
-- 测试说明：[docs/TESTING.md](./docs/TESTING.md)
+- [使用说明](./docs/USAGE.md)：安装、启动、参数和常见问题
+- [架构说明](./docs/ARCHITECTURE.md)：模块职责、运行流程和数据格式
+- [测试说明](./docs/TESTING.md)：本机、跨系统、加密和异常场景测试
+- [开发说明](./docs/DEVELOPMENT.md)：开发环境、代码规范和修改流程
+- [实验报告](./docs/EXPERIMENT_REPORT.md)：项目背景、设计实现、测试结果和总结
+- [贡献指南](./CONTRIBUTING.md)：Issue、分支、提交和 Pull Request 规范
+- [安全策略](./SECURITY.md)：安全模型、局限和漏洞反馈方式
+
+## 测试方式
+
+编译检查：
+
+```powershell
+python -m compileall voice_call.py voice_call_app tools
+```
+
+本机回环测试：
+
+```powershell
+python voice_call.py --mode server --port 5000
+python voice_call.py --mode client --host 127.0.0.1 --port 5000
+```
+
+加密模式测试：
+
+```powershell
+python voice_call.py --mode server --port 5000 --encrypt --password test123
+python voice_call.py --mode client --host 127.0.0.1 --port 5000 --encrypt --password test123
+```
 
 ## 当前限制
 
-- 这是一个原始 TCP 音频工具，不是 WebRTC 系统
-- 没有内建 NAT 穿透
-- WSL 音频依赖宿主机的 WSLg / Pulse 配置
-- 没有房间系统，也不支持多人通话
-- 服务端绑定地址在代码里固定为 `0.0.0.0`
-- 音频格式固定为 16-bit PCM，CLI 只能调 `rate`、`channels` 和 `chunk`
-- 当前没有用于手动选择输入/输出设备的 CLI 参数
+- 只支持一对一通话，不支持多人房间
+- 不包含 NAT 穿透，跨公网使用需要自行配置网络
+- 不提供账号体系和证书校验
+- 音频编码固定为 16-bit PCM，未做压缩编码
+- 命令行密码可能被系统进程列表看到，安全性要求较高的场景不建议直接使用
+- WSL 音频依赖 WSLg / PulseAudio 环境，部分机器可能需要手动排查设备
 
 ## 许可证
 
-本项目使用 MIT License。
+本项目使用 MIT License，详见 [LICENSE](./LICENSE)。
